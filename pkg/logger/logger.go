@@ -10,7 +10,6 @@ var Log *logrus.Logger
 
 func Init(env string) {
 	Log = logrus.New()
-
 	Log.SetOutput(os.Stdout)
 
 	if env == "production" {
