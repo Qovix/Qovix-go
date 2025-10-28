@@ -32,4 +32,20 @@ func SetupRoutes(
 		})
 	})
 
+	auth := r.Group("/api/auth")
+	{
+		auth.POST("/signup", authHandler.SignUp)
+		auth.POST("/login", authHandler.Login)
+		auth.POST("/verify-email", authHandler.VerifyEmail)
+		auth.POST("/resend-verification", authHandler.ResendVerification)
+		auth.POST("/forgot-password", authHandler.ForgotPassword)
+		auth.POST("/reset-password", authHandler.ResetPassword)
+	}
+
+	protected := r.Group("/api")
+	protected.Use(authMiddleware.Authenticate())
+	{
+		protected.GET("/profile", authHandler.GetProfile)
+		protected.PUT("/profile", authHandler.UpdateProfile)
+	}
 }
