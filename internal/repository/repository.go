@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/Qovix/Qovix-go/internal/models"
 	"github.com/Qovix/Qovix-go/pkg/database"
@@ -11,6 +12,11 @@ import (
 type UserRepository interface {
 	CreateUser(ctx context.Context, user *models.User) error
 	GetByID(ctx context.Context, id primitive.ObjectID) (*models.User, error)
+	GetByEmail(ctx context.Context, email string) (*models.User, error)
+	UpdateVerificationCode(ctx context.Context, email, code string, expiry time.Time) error
+	MarkEmailAsVerified(ctx context.Context, email string) error
+	UpdateResetCode(ctx context.Context, email, code string, expiry time.Time) error
+	UpdatePassword(ctx context.Context, email, hashedPassword string) error
 }
 
 type Repository struct {
