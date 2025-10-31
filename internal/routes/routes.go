@@ -12,6 +12,7 @@ import (
 func SetupRoutes(
 	r *gin.Engine,
 	authHandler *handlers.AuthHandler,
+	databaseHandler *handlers.DatabaseHandler,
 	authMiddleware *middleware.AuthMiddleware,
 	securityMiddleware *middleware.SecurityMiddleware,
 ) {
@@ -47,5 +48,16 @@ func SetupRoutes(
 	{
 		protected.GET("/profile", authHandler.GetProfile)
 		protected.PUT("/profile", authHandler.UpdateProfile)
+
+		// Database connection routes
+		database := protected.Group("/database")
+		{
+			database.POST("/test", databaseHandler.TestConnection)
+			database.POST("/connect", databaseHandler.Connect)
+			database.DELETE("/connections/:connection_id", databaseHandler.Disconnect)
+			database.GET("/connections/:connection_id/status", databaseHandler.GetConnectionStatus)
+			database.GET("/connections/:connection_id/schema", databaseHandler.GetSchema)
+			database.POST("/connections/:connection_id/query", databaseHandler.ExecuteQuery)
+		}
 	}
 }
