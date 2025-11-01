@@ -28,14 +28,25 @@ type QueryHistoryRepository interface {
 	GetQueryStats(ctx context.Context, userID primitive.ObjectID) (*QueryHistoryStats, error)
 }
 
+type DatabaseConnectionRepository interface {
+	CreateConnection(ctx context.Context, conn *models.DatabaseConnection) error
+	GetConnectionByID(ctx context.Context, id primitive.ObjectID) (*models.DatabaseConnection, error)
+	GetUserConnections(ctx context.Context, userID primitive.ObjectID) ([]*models.DatabaseConnection, error)
+	UpdateConnection(ctx context.Context, conn *models.DatabaseConnection) error
+	DeleteConnection(ctx context.Context, id, userID primitive.ObjectID) error
+	UpdateConnectionStatus(ctx context.Context, id primitive.ObjectID, status models.ConnectionStatus, version string, schemas []string) error
+}
+
 type Repository struct {
-	User         UserRepository
-	QueryHistory QueryHistoryRepository
+	User               UserRepository
+	QueryHistory       QueryHistoryRepository
+	DatabaseConnection DatabaseConnectionRepository
 }
 
 func NewRepository(db *database.MongoDB) *Repository {
 	return &Repository{
-		User:         NewUserRepository(db),
-		QueryHistory: NewQueryHistoryRepository(db),
+		User:               NewUserRepository(db),
+		QueryHistory:       NewQueryHistoryRepository(db),
+		DatabaseConnection: NewDatabaseConnectionRepository(db),
 	}
 }

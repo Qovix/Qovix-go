@@ -45,7 +45,7 @@ func main() {
 
 	userService := services.NewUserService(repos.User)
 	authService := services.NewAuthService(repos.User, jwtService, passwordService, emailService)
-	databaseService := services.NewDatabaseService(cfg.JWT.Secret)
+	databaseService := services.NewDatabaseService(cfg.JWT.Secret, repos.DatabaseConnection)
 	aiService := services.NewAIService(cfg.AI.GeminiAPIKey)
 
 	authMiddleware := middleware.NewAuthMiddleware(jwtService, userService)

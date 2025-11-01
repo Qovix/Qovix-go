@@ -50,18 +50,19 @@ func SetupRoutes(
 		protected.GET("/profile", authHandler.GetProfile)
 		protected.PUT("/profile", authHandler.UpdateProfile)
 
-		// Database connection routes
 		database := protected.Group("/database")
 		{
 			database.POST("/test", databaseHandler.TestConnection)
 			database.POST("/connect", databaseHandler.Connect)
-			database.DELETE("/connections/:connection_id", databaseHandler.Disconnect)
+			database.GET("/connections", databaseHandler.GetUserConnections)
+			database.POST("/connections/:connection_id/connect", databaseHandler.ConnectToSaved)
+			database.POST("/connections/:connection_id/disconnect", databaseHandler.DisconnectActive)
+			database.DELETE("/connections/:connection_id", databaseHandler.DeleteConnection)
 			database.GET("/connections/:connection_id/status", databaseHandler.GetConnectionStatus)
 			database.GET("/connections/:connection_id/schema", databaseHandler.GetSchema)
 			database.POST("/connections/:connection_id/query", databaseHandler.ExecuteQuery)
 		}
 
-		// AI SQL Assistant routes
 		ai := protected.Group("/ai")
 		{
 			ai.POST("/generate-sql", aiHandler.GenerateSQL)

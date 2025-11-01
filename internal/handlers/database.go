@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/Qovix/Qovix-go/internal/models"
 	"github.com/Qovix/Qovix-go/internal/services"
@@ -135,7 +136,7 @@ func (h *DatabaseHandler) Connect(c *gin.Context) {
 	})
 }
 
-func (h *DatabaseHandler) Disconnect(c *gin.Context) {
+func (h *DatabaseHandler) DisconnectActive(c *gin.Context) {
 	connectionID := c.Param("connection_id")
 	if connectionID == "" {
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
@@ -145,21 +146,28 @@ func (h *DatabaseHandler) Disconnect(c *gin.Context) {
 		return
 	}
 
-	conn, err := h.dbService.GetConnection(connectionID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, models.ErrorResponse{
-			Error:   "connection_not_found",
-			Message: "Database connection not found",
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+			Error:   "unauthorized",
+			Message: "User ID not found in context",
 		})
 		return
 	}
 
-	userID, exists := c.Get("user_id")
-	if !exists || conn.UserID != userID.(string) {
-		c.JSON(http.StatusForbidden, models.ErrorResponse{
-			Error:   "forbidden",
-			Message: "Access denied to this connection",
-		})
+	_, err := h.dbService.GetConnectionForUser(connectionID, userID.(string))
+	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			c.JSON(http.StatusForbidden, models.ErrorResponse{
+				Error:   "forbidden",
+				Message: "Access denied to this connection",
+			})
+		} else {
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				Error:   "connection_not_found",
+				Message: "Database connection not found",
+			})
+		}
 		return
 	}
 
@@ -189,21 +197,28 @@ func (h *DatabaseHandler) GetSchema(c *gin.Context) {
 		return
 	}
 
-	conn, err := h.dbService.GetConnection(connectionID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, models.ErrorResponse{
-			Error:   "connection_not_found",
-			Message: "Database connection not found",
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+			Error:   "unauthorized",
+			Message: "User ID not found in context",
 		})
 		return
 	}
 
-	userID, exists := c.Get("user_id")
-	if !exists || conn.UserID != userID.(string) {
-		c.JSON(http.StatusForbidden, models.ErrorResponse{
-			Error:   "forbidden",
-			Message: "Access denied to this connection",
-		})
+	_, err := h.dbService.GetConnectionForUser(connectionID, userID.(string))
+	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			c.JSON(http.StatusForbidden, models.ErrorResponse{
+				Error:   "forbidden",
+				Message: "Access denied to this connection",
+			})
+		} else {
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				Error:   "connection_not_found",
+				Message: "Database connection not found",
+			})
+		}
 		return
 	}
 
@@ -243,21 +258,28 @@ func (h *DatabaseHandler) ExecuteQuery(c *gin.Context) {
 		return
 	}
 
-	conn, err := h.dbService.GetConnection(connectionID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, models.ErrorResponse{
-			Error:   "connection_not_found",
-			Message: "Database connection not found",
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+			Error:   "unauthorized",
+			Message: "User ID not found in context",
 		})
 		return
 	}
 
-	userID, exists := c.Get("user_id")
-	if !exists || conn.UserID != userID.(string) {
-		c.JSON(http.StatusForbidden, models.ErrorResponse{
-			Error:   "forbidden",
-			Message: "Access denied to this connection",
-		})
+	_, err := h.dbService.GetConnectionForUser(connectionID, userID.(string))
+	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			c.JSON(http.StatusForbidden, models.ErrorResponse{
+				Error:   "forbidden",
+				Message: "Access denied to this connection",
+			})
+		} else {
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				Error:   "connection_not_found",
+				Message: "Database connection not found",
+			})
+		}
 		return
 	}
 
@@ -299,21 +321,28 @@ func (h *DatabaseHandler) GetConnectionStatus(c *gin.Context) {
 		return
 	}
 
-	conn, err := h.dbService.GetConnection(connectionID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, models.ErrorResponse{
-			Error:   "connection_not_found",
-			Message: "Database connection not found",
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+			Error:   "unauthorized",
+			Message: "User ID not found in context",
 		})
 		return
 	}
 
-	userID, exists := c.Get("user_id")
-	if !exists || conn.UserID != userID.(string) {
-		c.JSON(http.StatusForbidden, models.ErrorResponse{
-			Error:   "forbidden",
-			Message: "Access denied to this connection",
-		})
+	conn, err := h.dbService.GetConnectionForUser(connectionID, userID.(string))
+	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			c.JSON(http.StatusForbidden, models.ErrorResponse{
+				Error:   "forbidden",
+				Message: "Access denied to this connection",
+			})
+		} else {
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				Error:   "connection_not_found",
+				Message: "Database connection not found",
+			})
+		}
 		return
 	}
 
@@ -325,5 +354,141 @@ func (h *DatabaseHandler) GetConnectionStatus(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": status,
+	})
+}
+
+func (h *DatabaseHandler) GetUserConnections(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+			Error:   "unauthorized",
+			Message: "User ID not found in context",
+		})
+		return
+	}
+
+	h.log.WithField("user_id", userID.(string)).Info("Fetching user database connections")
+
+	connections, err := h.dbService.GetUserConnections(c.Request.Context(), userID.(string))
+	if err != nil {
+		h.log.WithError(err).Error("Failed to get user connections")
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "fetch_failed",
+			Message: "Failed to retrieve database connections",
+		})
+		return
+	}
+
+	var response []gin.H
+	for _, conn := range connections {
+		response = append(response, gin.H{
+			"id":          conn.ID.Hex(),
+			"name":        conn.Name,
+			"type":        conn.Type,
+			"host":        conn.Host,
+			"port":        conn.Port,
+			"database":    conn.Database,
+			"username":    conn.Username,
+			"status":      conn.Status,
+			"last_tested": conn.LastTested,
+			"version":     conn.Version,
+			"schemas":     conn.Schemas,
+			"created_at":  conn.CreatedAt,
+			"updated_at":  conn.UpdatedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Connections retrieved successfully",
+		"data":    response,
+	})
+}
+
+func (h *DatabaseHandler) DeleteConnection(c *gin.Context) {
+	connectionID := c.Param("connection_id")
+	if connectionID == "" {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "invalid_request",
+			Message: "Connection ID is required",
+		})
+		return
+	}
+
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+			Error:   "unauthorized",
+			Message: "User ID not found in context",
+		})
+		return
+	}
+
+	h.log.WithFields(map[string]interface{}{
+		"connection_id": connectionID,
+		"user_id":       userID.(string),
+	}).Info("Deleting database connection")
+
+	if err := h.dbService.DeleteUserConnection(c.Request.Context(), connectionID, userID.(string)); err != nil {
+		h.log.WithError(err).Error("Failed to delete database connection")
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "delete_failed",
+			Message: "Failed to delete database connection",
+		})
+		return
+	}
+
+	h.log.WithField("connection_id", connectionID).Info("Database connection deleted successfully")
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Database connection deleted successfully",
+	})
+}
+
+func (h *DatabaseHandler) ConnectToSaved(c *gin.Context) {
+	connectionID := c.Param("connection_id")
+	if connectionID == "" {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "invalid_request",
+			Message: "Connection ID is required",
+		})
+		return
+	}
+
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+			Error:   "unauthorized",
+			Message: "User ID not found in context",
+		})
+		return
+	}
+
+	h.log.WithFields(map[string]interface{}{
+		"connection_id": connectionID,
+		"user_id":       userID.(string),
+	}).Info("Connecting to saved database connection")
+
+	conn, err := h.dbService.ConnectToSavedConnection(c.Request.Context(), connectionID, userID.(string))
+	if err != nil {
+		h.log.WithError(err).Error("Failed to connect to saved connection")
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "connection_failed",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	response := &models.DatabaseConnectionResponse{
+		ID:       conn.ID,
+		Status:   models.StatusConnected,
+		Message:  "Successfully connected to saved database",
+		Database: conn.Config.Database,
+	}
+
+	h.log.WithField("connection_id", connectionID).Info("Successfully connected to saved database")
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Connected to saved database successfully",
+		"data":    response,
 	})
 }
