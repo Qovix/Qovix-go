@@ -46,12 +46,14 @@ func main() {
 	userService := services.NewUserService(repos.User)
 	authService := services.NewAuthService(repos.User, jwtService, passwordService, emailService)
 	databaseService := services.NewDatabaseService(cfg.JWT.Secret)
+	aiService := services.NewAIService(cfg.AI.GeminiAPIKey)
 
 	authMiddleware := middleware.NewAuthMiddleware(jwtService, userService)
 	securityMiddleware := middleware.NewSecurityMiddleware(cfg)
 
 	authHandler := handlers.NewAuthHandler(authService, userService)
 	databaseHandler := handlers.NewDatabaseHandler(databaseService)
+	aiHandler := handlers.NewAIHandler(aiService, databaseService)
 
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -59,7 +61,7 @@ func main() {
 
 	r := gin.New()
 
-	routes.SetupRoutes(r, authHandler, databaseHandler, authMiddleware, securityMiddleware)
+	routes.SetupRoutes(r, authHandler, databaseHandler, aiHandler, authMiddleware, securityMiddleware)
 
 	server := &http.Server{
 		Addr:    ":" + cfg.Server.Port,

@@ -30,3 +30,18 @@ type ErrorResponse struct {
 	Message string                 `json:"message"`
 	Details map[string]interface{} `json:"details,omitempty"`
 }
+
+// QueryHistory represents stored query history
+type QueryHistory struct {
+	ID           primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	UserID       primitive.ObjectID `bson:"user_id" json:"user_id"`
+	Database     string             `bson:"database" json:"database"`
+	Tables       []string           `bson:"tables" json:"tables"`
+	UserQuery    string             `bson:"user_query" json:"user_query"`
+	GeneratedSQL string             `bson:"generated_sql" json:"generated_sql"`
+	Explanation  string             `bson:"explanation" json:"explanation"`
+	Confidence   float64            `bson:"confidence" json:"confidence"`
+	IsValid      bool               `bson:"is_valid" json:"is_valid"`
+	ExecutedAt   *time.Time         `bson:"executed_at,omitempty" json:"executed_at,omitempty"`
+	CreatedAt    time.Time          `bson:"created_at" json:"created_at"`
+}

@@ -13,6 +13,7 @@ func SetupRoutes(
 	r *gin.Engine,
 	authHandler *handlers.AuthHandler,
 	databaseHandler *handlers.DatabaseHandler,
+	aiHandler *handlers.AIHandler,
 	authMiddleware *middleware.AuthMiddleware,
 	securityMiddleware *middleware.SecurityMiddleware,
 ) {
@@ -58,6 +59,15 @@ func SetupRoutes(
 			database.GET("/connections/:connection_id/status", databaseHandler.GetConnectionStatus)
 			database.GET("/connections/:connection_id/schema", databaseHandler.GetSchema)
 			database.POST("/connections/:connection_id/query", databaseHandler.ExecuteQuery)
+		}
+
+		// AI SQL Assistant routes
+		ai := protected.Group("/ai")
+		{
+			ai.POST("/generate-sql", aiHandler.GenerateSQL)
+			ai.POST("/validate-sql", aiHandler.ValidateSQL)
+			ai.POST("/explain-sql", aiHandler.ExplainSQL)
+			ai.GET("/history", aiHandler.GetQueryHistory)
 		}
 	}
 }
