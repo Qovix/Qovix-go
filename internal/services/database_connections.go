@@ -207,7 +207,6 @@ func (s *DatabaseService) createSQLConnection(req *models.DatabaseConnectionRequ
 		return nil, err
 	}
 
-	// Configure connection pool
 	db.SetMaxIdleConns(maxIdleConnections)
 	db.SetMaxOpenConns(maxOpenConnections)
 	db.SetConnMaxLifetime(connMaxLifetime)
