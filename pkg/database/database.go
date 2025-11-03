@@ -33,7 +33,6 @@ func New(uri, dbName string) (*MongoDB, error) {
 	}
 
 	log.Info("Successfully connected to MongoDB")
-
 	database := client.Database(dbName)
 
 	return &MongoDB{
