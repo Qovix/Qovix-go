@@ -31,7 +31,6 @@ type ErrorResponse struct {
 	Details map[string]interface{} `json:"details,omitempty"`
 }
 
-// QueryHistory represents stored query history
 type QueryHistory struct {
 	ID           primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	UserID       primitive.ObjectID `bson:"user_id" json:"user_id"`
