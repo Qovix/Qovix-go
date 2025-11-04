@@ -76,7 +76,6 @@ func (m *SecurityMiddleware) SecurityHeaders() gin.HandlerFunc {
 		c.Header("X-XSS-Protection", "1; mode=block")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 		c.Header("Content-Security-Policy", "default-src 'self'")
-
 		c.Header("Server", "")
 
 		c.Next()
