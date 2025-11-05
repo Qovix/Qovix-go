@@ -1,0 +1,344 @@
+func (s *DatabaseService) testMySQLConnection(ctx context.Context, req *models.DatabaseConnectionRequest) (*models.DatabaseConnectionResponse, error) {
+	config := mysql.NewConfig()
+	config.User = req.Username
+	config.Passwd = req.Password
+	config.Net = "tcp"
+	config.Addr = fmt.Sprintf("%s:%d", req.Host, req.Port)
+	config.DBName = req.Database
+	config.Timeout = 10 * time.Second
+	config.ParseTime = true
+
+	db, err := sql.Open("mysql", config.FormatDSN())
+	if err != nil {
+		return &models.DatabaseConnectionResponse{
+			Status:  models.StatusError,
+			Message: fmt.Sprintf("Failed to open MySQL connection: %v", err),
+		}, nil
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
+		return &models.DatabaseConnectionResponse{
+			Status:  models.StatusError,
+			Message: fmt.Sprintf("Failed to ping MySQL server: %v", err),
+		}, nil
+	}
+
+	var version string
+	err = db.QueryRowContext(ctx, "SELECT VERSION()").Scan(&version)
+	if err != nil {
+		s.log.Warnf("Could not get MySQL version: %v", err)
+	}
+
+	schemas, err := s.getMySQLSchemas(ctx, db)
+	if err != nil {
+		s.log.Warnf("Could not get MySQL schemas: %v", err)
+		schemas = []string{req.Database}
+	}
+
+	return &models.DatabaseConnectionResponse{
+		Status:   models.StatusConnected,
+		Message:  "Successfully connected to MySQL database",
+		Version:  version,
+		Schemas:  schemas,
+		Database: req.Database,
+	}, nil
+}
+
+func (s *DatabaseService) getMySQLSchemas(ctx context.Context, db *sql.DB) ([]string, error) {
+	query := "SHOW DATABASES"
+	rows, err := db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var schemas []string
+	for rows.Next() {
+		var schema string
+		if err := rows.Scan(&schema); err != nil {
+			continue
+		}
+		if schema != "information_schema" && schema != "performance_schema" &&
+			schema != "mysql" && schema != "sys" {
+			schemas = append(schemas, schema)
+		}
+	}
+	return schemas, nil
+}
+
+func (s *DatabaseService) getMySQLSchema(ctx context.Context, conn *DatabaseConnection) (*models.DatabaseSchema, error) {
+	db := conn.SQLConn
+	dbName := conn.Config.Database
+
+	schema := &models.DatabaseSchema{
+		Name:   dbName,
+		Tables: []models.TableSchema{},
+	}
+
+	tablesQuery := `
+		SELECT TABLE_NAME 
+		FROM INFORMATION_SCHEMA.TABLES 
+		WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'
+		ORDER BY TABLE_NAME`
+
+	rows, err := db.QueryContext(ctx, tablesQuery, dbName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tables: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var tableName string
+		if err := rows.Scan(&tableName); err != nil {
+			continue
+		}
+
+		table, err := s.getMySQLTableSchema(ctx, db, dbName, tableName)
+		if err != nil {
+			s.log.Warnf("Failed to get schema for table %s: %v", tableName, err)
+			continue
+		}
+		schema.Tables = append(schema.Tables, *table)
+	}
+
+	return schema, nil
+}
+
+func (s *DatabaseService) getMySQLTableSchema(ctx context.Context, db *sql.DB, dbName, tableName string) (*models.TableSchema, error) {
+	table := &models.TableSchema{
+		Name:    tableName,
+		Columns: []models.ColumnSchema{},
+		Indexes: []models.IndexSchema{},
+	}
+
+	columnsQuery := `
+		SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT, 
+			   COLUMN_KEY, EXTRA, CHARACTER_MAXIMUM_LENGTH
+		FROM INFORMATION_SCHEMA.COLUMNS 
+		WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+		ORDER BY ORDINAL_POSITION`
+
+	rows, err := db.QueryContext(ctx, columnsQuery, dbName, tableName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var columnName, dataType, nullable, columnKey, extra string
+		var defaultValue, maxLength sql.NullString
+
+		err := rows.Scan(&columnName, &dataType, &nullable, &defaultValue,
+			&columnKey, &extra, &maxLength)
+		if err != nil {
+			continue
+		}
+
+		column := models.ColumnSchema{
+			Name:         columnName,
+			Type:         dataType,
+			Nullable:     nullable == "YES",
+			IsPrimaryKey: columnKey == "PRI",
+			IsAutoIncr:   strings.Contains(extra, "auto_increment"),
+		}
+
+		if defaultValue.Valid {
+			column.DefaultValue = defaultValue.String
+		}
+
+		if maxLength.Valid {
+			if length, err := strconv.Atoi(maxLength.String); err == nil {
+				column.MaxLength = length
+			}
+		}
+
+		table.Columns = append(table.Columns, column)
+	}
+
+	return table, nil
+}
+
+func (s *DatabaseService) testPostgreSQLConnection(ctx context.Context, req *models.DatabaseConnectionRequest) (*models.DatabaseConnectionResponse, error) {
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		req.Host, req.Port, req.Username, req.Password, req.Database)
+
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return &models.DatabaseConnectionResponse{
+			Status:  models.StatusError,
+			Message: fmt.Sprintf("Failed to open PostgreSQL connection: %v", err),
+		}, nil
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
+		return &models.DatabaseConnectionResponse{
+			Status:  models.StatusError,
+			Message: fmt.Sprintf("Failed to ping PostgreSQL server: %v", err),
+		}, nil
+	}
+
+	var version string
+	err = db.QueryRowContext(ctx, "SELECT version()").Scan(&version)
+	if err != nil {
+		s.log.Warnf("Could not get PostgreSQL version: %v", err)
+	}
+
+	return &models.DatabaseConnectionResponse{
+		Status:   models.StatusConnected,
+		Message:  "Successfully connected to PostgreSQL database",
+		Version:  version,
+		Schemas:  []string{req.Database},
+		Database: req.Database,
+	}, nil
+}
+
+func (s *DatabaseService) getPostgreSQLSchema(ctx context.Context, conn *DatabaseConnection) (*models.DatabaseSchema, error) {
+	db := conn.SQLConn
+	dbName := conn.Config.Database
+
+	schema := &models.DatabaseSchema{
+		Name:   dbName,
+		Tables: []models.TableSchema{},
+	}
+
+	tablesQuery := `
+		SELECT table_name 
+		FROM information_schema.tables 
+		WHERE table_catalog = $1 AND table_schema = 'public' AND table_type = 'BASE TABLE'
+		ORDER BY table_name`
+
+	rows, err := db.QueryContext(ctx, tablesQuery, dbName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tables: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var tableName string
+		if err := rows.Scan(&tableName); err != nil {
+			continue
+		}
+
+		table, err := s.getPostgreSQLTableSchema(ctx, db, dbName, tableName)
+		if err != nil {
+			s.log.Warnf("Failed to get schema for table %s: %v", tableName, err)
+			continue
+		}
+		schema.Tables = append(schema.Tables, *table)
+	}
+
+	return schema, nil
+}
+
+func (s *DatabaseService) getPostgreSQLTableSchema(ctx context.Context, db *sql.DB, dbName, tableName string) (*models.TableSchema, error) {
+	table := &models.TableSchema{
+		Name:    tableName,
+		Columns: []models.ColumnSchema{},
+		Indexes: []models.IndexSchema{},
+	}
+
+	columnsQuery := `
+		SELECT column_name, data_type, is_nullable, column_default, 
+			   character_maximum_length
+		FROM information_schema.columns 
+		WHERE table_catalog = $1 AND table_schema = 'public' AND table_name = $2
+		ORDER BY ordinal_position`
+
+	rows, err := db.QueryContext(ctx, columnsQuery, dbName, tableName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var columnName, dataType, nullable string
+		var defaultValue, maxLength sql.NullString
+
+		err := rows.Scan(&columnName, &dataType, &nullable, &defaultValue, &maxLength)
+		if err != nil {
+			continue
+		}
+
+		column := models.ColumnSchema{
+			Name:     columnName,
+			Type:     dataType,
+			Nullable: nullable == "YES",
+		}
+
+		if defaultValue.Valid {
+			column.DefaultValue = defaultValue.String
+			// Check if it's a sequence (auto increment)
+			if strings.Contains(defaultValue.String, "nextval") {
+				column.IsAutoIncr = true
+			}
+		}
+
+		if maxLength.Valid {
+			if length, err := strconv.Atoi(maxLength.String); err == nil {
+				column.MaxLength = length
+			}
+		}
+
+		table.Columns = append(table.Columns, column)
+	}
+
+	return table, nil
+}
+
+func (s *DatabaseService) testMongoDBConnection(ctx context.Context, req *models.DatabaseConnectionRequest) (*models.DatabaseConnectionResponse, error) {
+	uri := fmt.Sprintf("mongodb://%s:%s@%s:%d/%s",
+		req.Username, req.Password, req.Host, req.Port, req.Database)
+
+	clientOptions := options.Client().ApplyURI(uri)
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	client, err := mongo.Connect(ctx, clientOptions)
+	if err != nil {
+		return &models.DatabaseConnectionResponse{
+			Status:  models.StatusError,
+			Message: fmt.Sprintf("Failed to connect to MongoDB: %v", err),
+		}, nil
+	}
+	defer client.Disconnect(ctx)
+
+	if err := client.Ping(ctx, nil); err != nil {
+		return &models.DatabaseConnectionResponse{
+			Status:  models.StatusError,
+			Message: fmt.Sprintf("Failed to ping MongoDB server: %v", err),
+		}, nil
+	}
+
+	return &models.DatabaseConnectionResponse{
+		Status:   models.StatusConnected,
+		Message:  "Successfully connected to MongoDB database",
+		Database: req.Database,
+		Schemas:  []string{req.Database},
+	}, nil
+}
+
+func (s *DatabaseService) getMongoDBSchema(ctx context.Context, conn *DatabaseConnection) (*models.DatabaseSchema, error) {
+
+	return &models.DatabaseSchema{
+		Name:   conn.Config.Database,
+		Tables: []models.TableSchema{},
+	}, nil
+}
+
+
+func (s *DatabaseService) createMongoConnection(ctx context.Context, req *models.DatabaseConnectionRequest) (*mongo.Client, error) {
+	uri := fmt.Sprintf("mongodb://%s:%s@%s:%d/%s",
+		req.Username, req.Password, req.Host, req.Port, req.Database)
+
+	clientOptions := options.Client().ApplyURI(uri)
+	return mongo.Connect(ctx, clientOptions)
+}
