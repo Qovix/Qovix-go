@@ -168,14 +168,12 @@ func splitString(s, sep string) []string {
 func trimSpaces(s string) string {
 	start := 0
 	end := len(s)
-
 	for start < end && s[start] == ' ' {
 		start++
 	}
 	for end > start && s[end-1] == ' ' {
 		end--
 	}
-
 	return s[start:end]
 }
 
