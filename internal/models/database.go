@@ -24,7 +24,7 @@ type DatabaseConnection struct {
 	Port       int                `bson:"port" json:"port"`
 	Database   string             `bson:"database" json:"database"`
 	Username   string             `bson:"username" json:"username"`
-	Password   string             `bson:"password,omitempty" json:"-"` // Never expose in JSON
+	Password   string             `bson:"password,omitempty" json:"-"` 
 	Status     ConnectionStatus   `bson:"status" json:"status"`
 	LastTested time.Time          `bson:"last_tested" json:"last_tested"`
 	Version    string             `bson:"version,omitempty" json:"version,omitempty"`
