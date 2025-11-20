@@ -17,7 +17,6 @@ type MongoDB struct {
 
 func New(uri, dbName string) (*MongoDB, error) {
 	log := logger.GetLogger()
-
 	clientOptions := options.Client().ApplyURI(uri)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
